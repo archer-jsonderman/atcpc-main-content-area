@@ -1,0 +1,8 @@
+{
+  "id": "atcpc-main-content-area",
+  "name": "atcpc-main-content-area",
+  "srcdoc": "./build/index.html",
+  "fieldTypes": [
+    "Object"
+  ]
+}
