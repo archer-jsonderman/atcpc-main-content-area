@@ -20,9 +20,32 @@ import {
 import '@contentful/forma-36-react-components/dist/styles.css';
 import './index.css'; 
 
-//Cap # of entires based on install param
-//for grid, set Sortable List axis to xy. need to have different CSS to resize the areas
- //truncate P content after xx numbver of words/characters
+const initFormat = {
+    items: [{
+            id: "item1",
+            body: {
+                content: "<p></p>",
+                headline: "Default Item"
+            },
+            index: 0
+        }],
+    modal: {
+        shown: false
+    },
+    target: {
+        id: "",
+        body: {
+            content: "",
+            headline: ""
+        },
+        index: null
+    },
+    overview: {
+        content: "",
+        headline: ""
+    }
+}
+//TODO: remove modal for edit due to sizing issues. replace card with fields on edit
 const DragHandle = SortableHandle(() => {
 	return(
 		<div className="CardDragHandle__CardDragHandle___2rqnO">
@@ -77,6 +100,7 @@ const SortableList = SortableContainer((props) => {
 
 	return (
 		<div className="sortableList">
+		<h3>Section Items</h3>
 		  {props.items.map((item, index) => (
 			    <SortableItem
 			    	key={item.id} 	 
@@ -90,13 +114,7 @@ const SortableList = SortableContainer((props) => {
 			    	/>
 			    )   	
 		  )}
-		  <Button 
-		      buttonType="naked" 
-		      isFullWidth={true} 
-		      icon="Plus" 
-		      id="add-new-item"
-		      onClick={props.onAddItem}
-			  />
+		 
 	</div>
 	);
 });
@@ -117,15 +135,11 @@ export default class MainContent extends React.Component {
 	componentWillMount(){
 	  this.props.sdk.window.updateHeight();
 	  this.props.sdk.window.startAutoResizer();
-	  this.setState(this.props.sdk.field.getValue())
-	  this.setState({
-		  overview:{
-			  headline:'',
-			  content:''
-		  },
-		  	modal:{shown:false},
-		  	target:{id:'',index:null,body:{content:'',headline:''}},
-		  	})
+	  let initObj = this.props.sdk.field.getValue();
+	  initObj.modal.shown = false;
+	  //if this is a new page, there is no field value, so set to a default structure to avoid object errors
+	  if(!initObj)initObj=initFormat;
+	  this.setState(initObj)
 	}
 	
 	onSortEnd = ({oldIndex, newIndex}) => {	  
@@ -185,34 +199,55 @@ export default class MainContent extends React.Component {
 				}
 			
 		  	})
-	  	this.setState(modalSet)
-		  	
+	  	this.setState(modalSet)		  	
 	}
-	handleFieldChange(event){
+	handleFieldChange=(event, isModal)=>{
 		const {name, value} = event.target
-		const updates = update(this.state,{
-			target:{
-				body:{
-					[name]:{$set:value}
+		if(isModal){
+			const updates = update(this.state,{
+				target:{
+					body:{
+						[name]:{$set:value}
+					}
 				}
-			}
-		})
-		this.setState(updates)
+			})
+			this.setState(updates)
+		}else{
+			const updates = update(this.state,{
+					overview:{
+						[name]:{$set:value}
+					}
+
+			})
+			this.setState(updates, ()=>{this.clearAndSave(true)})
+		}
+		
 	}
-	handleRTEchange(value){
-		let target = {...this.state.target}
-		const changed = update(this.state,{
-			target:{
-				body:{
+	handleRTEchange=(value,isModal)=>{
+		if(isModal){
+			let target = {...this.state.target}
+			const changed = update(this.state,{
+				target:{
+					body:{
+						content:{
+							$set:value
+						}
+					}
+				}
+			})
+			this.setState(changed);
+		}else{
+			const changed = update(this.state,{
+				overview:{
 					content:{
 						$set:value
 					}
 				}
-			}
-		})
-		this.setState(changed);
-	}
-	
+			})
+			this.setState(changed, ()=>this.clearAndSave(true))
+		}
+		
+	}	
   	handleRemoveModal=(props)=>{
 	  	const modalSet = update(this.state,{
 		  	modal:{
@@ -220,7 +255,7 @@ export default class MainContent extends React.Component {
 			  	type:{$set:'delete'},
 			  	title: {$set:"Confirm Entry Removal"},
 			  	intent:{$set:"negative"},
-			  	confirm:{$sert:"Confirm Entry Removal"},
+			  	confirm:{$set:"Confirm Entry Removal"},
 			  	}, 
 		  	target:{
 			  	index:{$set:props.childIndex},
@@ -231,9 +266,8 @@ export default class MainContent extends React.Component {
 				  	}
 			  	}
 			 }
-
 	  	)
-	  	this.setState({modalSet})
+	  	this.setState(modalSet)
 	}	
   	handleRemove=(props)=>{
 	  	const removal = update(this.state,{
@@ -241,10 +275,10 @@ export default class MainContent extends React.Component {
 	  		} )
 	  	this.setState(removal,()=>{this.clearAndSave(true)})
 	  	 	
-  	}
-  	
+  	} 	
   	onConfirm(props){
 	  	if(this.state.modal.type==="delete"){
+		  	
 		  	this.handleRemove(props)
 	  	}else{
 		  	this.handleEdit(props)
@@ -274,13 +308,13 @@ export default class MainContent extends React.Component {
 			  		name="headline" 
 			  		id="headline" 
 			  		value={this.state.target.body.headline||''}
-			  		onChange={(e)=>this.handleFieldChange(e)}
+			  		onChange={(e)=>this.handleFieldChange(e,true)}
 			  		/>
 			  		
 			  		<ReactQuill 
 			  		name="content" 
 			  		value={this.state.target.body.content||''}
-			  		onChange={(value)=>this.handleRTEchange(value)} 
+			  		onChange={(value)=>this.handleRTEchange(value,true)} 
 			  		modules={this.modules}
 			  		/>
 			  		
@@ -301,27 +335,32 @@ export default class MainContent extends React.Component {
 	      ['clean']
 		    ],
 	  }
+	btnShow = () => {
+		const btnState = (this.state.items.length >= this.props.sdk.parameters.instance.maxSteps) ? "none" : "block";
+		return btnState;
+	}
   	render() {
 	    return (
 		    <>
 		    <div className="overview">
+		    <h3>Section Overview</h3>
 			   <TextField
 			   		className="overview-headline"
-				    name="overview-headline"
+				    name="headline"
 				    id="overview-headline"
 				    labelText="Headline"
-				    value={this.state.overview.headline}
-				    onChange={console.log('blur')}
+				    value={this.state.overview.headline || ''}
+				    onChange={e=>this.handleFieldChange(e)}
 				    textInputProps={{
 				    	placeholder: "Main Content Headline",
 				        maxLength: 50,
 				    }}
 			  	/>
-			  	<label class="FormLabel__FormLabel___3d6zQ" data-test-id="cf-ui-form-label" for="overview-content">Introduction</label>
+			  	<label className="FormLabel__FormLabel___3d6zQ" data-test-id="cf-ui-form-label" htmlFor="overview-content">Introduction</label>
 			  	<ReactQuill 
 			  		name="overview-content" 
 			  		value={this.state.overview.content||''}
-			  		onChange={console.log('content')} 
+			  		onChange={(value)=>this.handleRTEchange(value)} 
 			  		modules={this.modules}
 		  		/>
 		  	</div>
@@ -332,10 +371,19 @@ export default class MainContent extends React.Component {
 			    onEdit = {this.handleEditModal}
 			    onRemove = {this.handleRemoveModal}
 		    /> 
+			<Button 
+		      buttonType="naked" 
+		      isFullWidth={true} 
+		      icon="Plus" 
+		      id="add-new-item"
+		      onClick={this.handleAddItem}
+		      style={{display: this.btnShow()}}
+			  />
 		    
 		    <ModalConfirm
 		        isShown={this.state.modal.shown||false}
-		        size="large"
+		        size="fullWidth"
+		        allowHeightOverflow={true}
 		        title={this.state.modal.title||"Modal"}
 		        intent={this.state.modal.intent||"positive"}
 		        confirmLabel={this.state.modal.confirm||"Confirm"}

@@ -1,8 +1,19 @@
 {
   "id": "atcpc-main-content-area",
-  "name": "atcpc-main-content-area",
+  "name": "Main Content Callouts",
   "srcdoc": "./build/index.html",
   "fieldTypes": [
     "Object"
-  ]
+  ],
+   "parameters": {
+	  "instance":[
+		  {
+			  "id":"maxSteps",
+			  "name":"Maximum Number of Items",
+			  "type":"Number",
+			  "default":4
+			  
+		  }
+	  ]
+  }
 }
